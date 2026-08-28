@@ -3,32 +3,48 @@
 
 //ADI'S SUPER AWESOME WIFI NETWORK PROVISIONING AND FILE MANAGEMENT LIBRARY
 
-//#define LittleFS_ENABLED
-#define SD_ENABLED
+#if __has_include("AdiWiFiManagerConfig.h")
+  #include "AdiWiFiManagerConfig.h"
+#endif
 
-#define MAX_SAVED_WIFI_STATIONS 5 //number of slots in eeprom to save wifi networks
+#if !defined(SD_ENABLED) && !defined(LittleFS_ENABLED)
+#error "AdiWiFiManager: no filesystem selected. Create AdiWiFiManagerConfig.h in your sketch folder (copy AdiWiFiManagerConfig_example.h) and #define SD_ENABLED and/or LittleFS_ENABLED there."
+#endif
 
-#define DEFAULT_AP_SSID "AdiWebServer"
-#define DEFAULT_AP_PASS "12345678"
-#define DEFAULT_HOSTNAME "AdiWebServer"
+#if !defined(ASSETS_LOCATION)
+#error "AdiWiFiManager: ASSETS_LOCATION not defined. Set it to SD or LittleFS in your AdiWiFiManagerConfig.h."
+#endif
 
-//This is the location where the assets for the webserver are stored. it can be either SD or LittleFS
-#define ASSETS_LOCATION SD
+#ifndef ARDUINO_ARCH_ESP32
+  #error "AdiWiFiManager only supports ESP32-based boards."
+#endif
+
+#if __has_include(<ESPAsyncWebServer.h>)
+  #include <ESPAsyncWebServer.h>
+#else
+  #error "AdiWiFiManager requires the ESPAsyncWebServer library — install it via Library Manager or https://github.com/ESP32Async/ESPAsyncWebServer"
+#endif
+
+#if __has_include(<AsyncTCP.h>)
+  #include <AsyncTCP.h>
+#else
+  #error "AdiWiFiManager requires the AsyncTCP library — install it via Library Manager or https://github.com/ESP32Async/AsyncTCP"
+#endif
+
+#ifndef HOSTNAME
+  #define HOSTNAME "AdiWebServer"
+#endif
+
+#ifndef AP_SSID
+  #define AP_SSID "ESP32-AP"
+#endif
+
+#ifndef AP_PASS
+  #define AP_PASS "12345678"
+#endif
+
+// Maximum asset files the library scans for and keeps track of
 #define MAX_ASSET_FILES 10
-
-/*
-Needed Folders:
-
-	/Assets
-		/Backgrounds (background images, must be jpg, jpeg, png or bmp)
-		/MainIcons (homepage icons, must be jpg, gif, png or bmp)
-		/OtherIcons (wifi icons, file explorer icons etc)
-
-*/
-
-#define HOMEPAGE_H1 "Doorlock Webserver"
-#define HOMEPAGE_H2 "AdiWebServer"
-#define HOMEPAGE_H3 "HEHEHEHEHEHE"
 
 //Libraries
 
@@ -63,15 +79,8 @@ typedef void (*DebugLogCallback)(const char *message);
 extern DebugLogCallback debugLogCallback;
 
 inline void _DebugLog(const String &message) {
-  if (debugLogCallback) debugLogCallback(message.c_str());
+  if(debugLogCallback) debugLogCallback(message.c_str());
 }
-
-//#define DEBUG_PRINT(x) _DebugLog(x);
-//#define DEBUG_PRINTLN(x) _DebugLog(String(x) + "\n");
-
-#if !defined(SD_ENABLED) && !defined(LittleFS_ENABLED)
-#error "AdiWiFiManager needs SD_ENABLED or LittleFS_ENABLED defined to store webserver assets"
-#endif
 
 const char BUILD_[] = __DATE__ " " __TIME__;
 
@@ -123,9 +132,6 @@ class AdiWiFiManager {
 		bool AP_MODE = false;
 		bool wb_stays_active = false;
 		bool webserver_running = false;
-		String wifi_ap_ssid = DEFAULT_AP_SSID;
-		String wifi_ap_pass = DEFAULT_AP_PASS;
-		String _hostname = DEFAULT_HOSTNAME;
 
 		String HTML_Header();
 		void Handle_Home(AsyncWebServerRequest *request);
@@ -181,8 +187,6 @@ class AdiWiFiManager {
 
 		void setDebugCallback(DebugLogCallback callback);
 		void WB_StaysActive(bool WBstaysActive);
-		void setAP_ssid_pass(String ssid, String pass);
-		void setHostname(String hostname);
 		void connectToWiFi(bool ap_on_fail, String sta_ssid, String sta_pass);
 		wifi_ssid_count_t getScanResults(WiFiResult* &results);
 		uint8_t getWiFiStatus();

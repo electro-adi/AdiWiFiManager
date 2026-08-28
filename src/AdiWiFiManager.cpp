@@ -508,7 +508,7 @@ void AdiWiFiManager::Handle_Wifi(AsyncWebServerRequest *request) {
   {
     page += "<div class='wifi_box'>";
     page += "<h2>Access Point Active</h2>";
-    page += "<p><strong>AP Name:</strong> " + wifi_ap_ssid + "</p>";
+    page += "<p><strong>AP Name:</strong> " + AP_SSID + "</p>";
     page += "<p><strong>AP IP:</strong> " + WiFi.softAPIP().toString() + "</p>";
     page += "</div>";
   }
@@ -1185,14 +1185,16 @@ void AdiWiFiManager::Handle_SD_Dir(AsyncWebServerRequest *request) {
       to { opacity: 1; transform: translateY(0); }
     }
 
-    .spinner {
+    .popup_box .spinner {
+      display: block;
       width: 32px; height: 32px;
       border: 4px solid rgba(255,255,255,0.2);
       border-top-color: #00c6ff;
       border-radius: 50%;
-      margin: 0 auto 0.8em;
+      margin: 0 auto 0.8em auto;
       animation: spin 0.8s linear infinite;
     }
+
     @keyframes spin { to { transform: rotate(360deg); } }
     .popup_box.processing .popup_buttons { display: none; }
   </style>
@@ -1476,7 +1478,7 @@ void AdiWiFiManager::Handle_SD_Dir(AsyncWebServerRequest *request) {
 
           else if (mode === 'delete') {
             popupBox.classList.add('processing');
-            popupText.innerHTML = '<div class="spinner"></div>Deleting ' + selectedFiles.length + ' item(s)...';
+            popupText.innerHTML = '<div class="spinner"></div><div>Deleting ' + selectedFiles.length + ' item(s)...</div>';
 
             let deleteCount = 0;
             for (let i = 0; i < selectedFiles.length; i++) {
@@ -1493,8 +1495,7 @@ void AdiWiFiManager::Handle_SD_Dir(AsyncWebServerRequest *request) {
             if (!destPath || destPath.trim() === "") { alert("Enter destination path"); return; }
 
             popupBox.classList.add('processing');
-            popupText.innerHTML = '<div class="spinner"></div>Moving ' + selectedFiles.length + ' item(s)...';
-
+            popupText.innerHTML = '<div class="spinner"></div><div>Moving ' + selectedFiles.length + ' item(s)...</div>';
             let moveCount = 0;
             for (let i = 0; i < selectedFiles.length; i++) {
               try {
@@ -2122,7 +2123,7 @@ void AdiWiFiManager::Handle_SD_Create_Folder(AsyncWebServerRequest *request) {
     _DebugLog("Folder already exists");
   }
   
-  request->redirect("/sd_dir?path=" + basePath);
+  request->redirect("/sd_dir?path=" + fullPath);
 }
 
 #endif
@@ -2380,14 +2381,16 @@ void AdiWiFiManager::Handle_LittleFS_Dir(AsyncWebServerRequest *request) {
       to { opacity: 1; transform: translateY(0); }
     }
 
-    .spinner {
+    .popup_box .spinner {
+      display: block;
       width: 32px; height: 32px;
       border: 4px solid rgba(255,255,255,0.2);
       border-top-color: #00c6ff;
       border-radius: 50%;
-      margin: 0 auto 0.8em;
+      margin: 0 auto 0.8em auto;
       animation: spin 0.8s linear infinite;
     }
+
     @keyframes spin { to { transform: rotate(360deg); } }
     .popup_box.processing .popup_buttons { display: none; }
   </style>
@@ -2538,7 +2541,7 @@ void AdiWiFiManager::Handle_LittleFS_Dir(AsyncWebServerRequest *request) {
         function exitMode() {
           mode = '';
           resetSelection();
-          document.querySelector('.file_box h2').textContent = '📁 SPIFFS SD File Manager';
+          document.querySelector('.file_box h2').textContent = '📁 LittleFS File Manager';
           document.getElementById('deleteBtn').textContent = 'Delete';
           document.getElementById('moveBtn').textContent = 'Move';
           document.getElementById('downloadBtn').textContent = 'Download';
@@ -2671,7 +2674,7 @@ void AdiWiFiManager::Handle_LittleFS_Dir(AsyncWebServerRequest *request) {
 
           else if (mode === 'delete') {
             popupBox.classList.add('processing');
-            popupText.innerHTML = '<div class="spinner"></div>Deleting ' + selectedFiles.length + ' item(s)...';
+            popupText.innerHTML = '<div class="spinner"></div><div>Deleting ' + selectedFiles.length + ' item(s)...</div>';
 
             let deleteCount = 0;
             for (let i = 0; i < selectedFiles.length; i++) {
@@ -2688,7 +2691,7 @@ void AdiWiFiManager::Handle_LittleFS_Dir(AsyncWebServerRequest *request) {
             if (!destPath || destPath.trim() === "") { alert("Enter destination path"); return; }
 
             popupBox.classList.add('processing');
-            popupText.innerHTML = '<div class="spinner"></div>Moving ' + selectedFiles.length + ' item(s)...';
+            popupText.innerHTML = '<div class="spinner"></div><div>Moving ' + selectedFiles.length + ' item(s)...</div>';
 
             let moveCount = 0;
             for (let i = 0; i < selectedFiles.length; i++) {
@@ -3317,7 +3320,7 @@ void AdiWiFiManager::Handle_LittleFS_Create_Folder(AsyncWebServerRequest *reques
     _DebugLog("Folder already exists");
   }
   
-  request->redirect("/littlefs_dir?path=" + basePath);
+  request->redirect("/littlefs_dir?path=" + fullPath);
 }
 
 #endif
@@ -3811,7 +3814,7 @@ void AdiWiFiManager::StartWebserver() {
     if(!DNS.start(53, "*", WiFi.softAPIP())) Serial.println("Could not start Captive DNS Server!");
   }
 
-  if(MDNS.begin(_hostname)) {
+  if(MDNS.begin(HOSTNAME)) {
     MDNS.addService("http", "tcp", 80);
   }
   else
@@ -4093,17 +4096,6 @@ void AdiWiFiManager::WB_StaysActive(bool active) {
   wb_stays_active = active;
 }
 
-// Set the SSID and password for the access point mode.
-void AdiWiFiManager::setAP_ssid_pass(String ssid, String pass) {
-  wifi_ap_ssid = ssid;
-  wifi_ap_pass = pass;
-}
-
-// Set the hostname for the device. For Mdns http://<hostname>.local
-void AdiWiFiManager::setHostname(String hostname) {
-  _hostname = hostname;
-}
-
 // Connect to WiFi using the provided SSID and password. If the connection fails, it can optionally start an access point.
 void AdiWiFiManager::connectToWiFi(bool ap_on_fail, String sta_ssid, String sta_pass) {
 
@@ -4130,8 +4122,8 @@ void AdiWiFiManager::connectToWiFi(bool ap_on_fail, String sta_ssid, String sta_
         WiFi.disconnect(true);
         WiFi.mode(WIFI_AP);
         delay(100);
-        _DebugLog("Configuring access point: " + wifi_ap_ssid + " with password: " + wifi_ap_pass);
-        WiFi.softAP(wifi_ap_ssid, wifi_ap_pass);
+        _DebugLog("Configuring access point: " + AP_SSID + " with password: " + AP_PASS);
+        WiFi.softAP(AP_SSID, AP_PASS);
         delay(500);
         _DebugLog("AP Started, IP:" + WiFi.softAPIP().toString());
 

@@ -17,10 +17,6 @@ void setup() {
 
   WiFiManager.setDebugCallback(wifiDebugLog);
 
-  WiFiManager.setAP_ssid_pass("ESP32", "12345678");
-
-  WiFiManager.setHostname("ESP32");
-
   //If true, Webserver stays active after wifi connection is established
   WiFiManager.WB_StaysActive(true);
 
