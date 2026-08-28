@@ -31,6 +31,8 @@ The library needs to know which filesystem(s) to use before it will compile — 
 
 Copy `AdiWiFiManagerConfig_example.h` into your sketch folder, rename it to `AdiWiFiManagerConfig.h`, and edit it there:
 
+For Platform.io users, the `AdiWiFiManagerConfig.h` file should be inside of the include folder and `-I include` must be added to the build flags section within platform.ini.
+
 ```cpp
 // AdiWiFiManagerConfig.h — lives in your sketch folder
 

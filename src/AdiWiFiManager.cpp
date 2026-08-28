@@ -508,7 +508,7 @@ void AdiWiFiManager::Handle_Wifi(AsyncWebServerRequest *request) {
   {
     page += "<div class='wifi_box'>";
     page += "<h2>Access Point Active</h2>";
-    page += "<p><strong>AP Name:</strong> " + AP_SSID + "</p>";
+    page += "<p><strong>AP Name:</strong> " + String(AP_SSID) + "</p>";
     page += "<p><strong>AP IP:</strong> " + WiFi.softAPIP().toString() + "</p>";
     page += "</div>";
   }
@@ -4122,7 +4122,7 @@ void AdiWiFiManager::connectToWiFi(bool ap_on_fail, String sta_ssid, String sta_
         WiFi.disconnect(true);
         WiFi.mode(WIFI_AP);
         delay(100);
-        _DebugLog("Configuring access point: " + AP_SSID + " with password: " + AP_PASS);
+        _DebugLog("Configuring access point: " + String(AP_SSID) + " with password: " + String(AP_PASS));
         WiFi.softAP(AP_SSID, AP_PASS);
         delay(500);
         _DebugLog("AP Started, IP:" + WiFi.softAPIP().toString());
