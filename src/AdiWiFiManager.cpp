@@ -365,7 +365,7 @@ void AdiWiFiManager::Handle_Home(AsyncWebServerRequest *request) {
 
   #if defined(ASSETS_LOCATION)
     chosen_icon = getRandomAssetFile("/Assets/MainIcons");
-  #else
+  #endif
 
   String page = HTML_Header();
   page += R"rawliteral(
