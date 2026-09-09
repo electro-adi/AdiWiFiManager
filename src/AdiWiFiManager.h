@@ -4,43 +4,43 @@
 //ADI'S SUPER AWESOME WIFI NETWORK PROVISIONING AND FILE MANAGEMENT LIBRARY
 
 #if __has_include("AdiWiFiManagerConfig.h")
-  #include "AdiWiFiManagerConfig.h"
+  	#include "AdiWiFiManagerConfig.h"
 #endif
 
 #if !defined(SD_ENABLED) && !defined(LittleFS_ENABLED)
-#error "AdiWiFiManager: no filesystem selected. Create AdiWiFiManagerConfig.h in your sketch folder (copy AdiWiFiManagerConfig_example.h) and #define SD_ENABLED and/or LittleFS_ENABLED there."
+	#warning "AdiWiFiManager: no filesystem selected. Create AdiWiFiManagerConfig.h in your sketch folder (copy AdiWiFiManagerConfig_example.h) and #define SD_ENABLED and/or LittleFS_ENABLED there."
 #endif
 
 #if !defined(ASSETS_LOCATION)
-#warning "AdiWiFiManager: ASSETS_LOCATION not defined. Set it to SD or LittleFS in your AdiWiFiManagerConfig.h."
+	#warning "AdiWiFiManager: ASSETS_LOCATION not defined. Set it to SD or LittleFS in your AdiWiFiManagerConfig.h."
 #endif
 
 #ifndef ARDUINO_ARCH_ESP32
-  #error "AdiWiFiManager only supports ESP32-based boards."
+	#error "AdiWiFiManager only supports ESP32-based boards."
 #endif
 
 #if __has_include(<ESPAsyncWebServer.h>)
-  #include <ESPAsyncWebServer.h>
+  	#include <ESPAsyncWebServer.h>
 #else
-  #error "AdiWiFiManager requires the ESPAsyncWebServer library — install it via Library Manager or https://github.com/ESP32Async/ESPAsyncWebServer"
+  	#error "AdiWiFiManager requires the ESPAsyncWebServer library — install it via Library Manager or https://github.com/ESP32Async/ESPAsyncWebServer"
 #endif
 
 #if __has_include(<AsyncTCP.h>)
-  #include <AsyncTCP.h>
+  	#include <AsyncTCP.h>
 #else
-  #error "AdiWiFiManager requires the AsyncTCP library — install it via Library Manager or https://github.com/ESP32Async/AsyncTCP"
+  	#error "AdiWiFiManager requires the AsyncTCP library — install it via Library Manager or https://github.com/ESP32Async/AsyncTCP"
 #endif
 
 #ifndef HOSTNAME
-  #define HOSTNAME "AdiWebServer"
+  	#define HOSTNAME "AdiWebServer"
 #endif
 
 #ifndef AP_SSID
-  #define AP_SSID "ESP32-AP"
+  	#define AP_SSID "ESP32-AP"
 #endif
 
 #ifndef AP_PASS
-  #define AP_PASS "12345678"
+  	#define AP_PASS "12345678"
 #endif
 
 // Maximum asset files the library scans for and keeps track of
@@ -188,7 +188,7 @@ class AdiWiFiManager {
 	#endif
 
 	#ifdef SPIFFS_ENABLED
-		void SPIFFS_Directory(String path);
+		void SPIFFS_Directory();
 		void Handle_SPIFFS_Dir(AsyncWebServerRequest * request);
 		void Handle_SPIFFS_File_Upload(AsyncWebServerRequest *request);
 		void on_SPIFFS_File_Upload(AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final);

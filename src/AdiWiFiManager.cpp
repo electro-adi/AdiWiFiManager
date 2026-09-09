@@ -39,16 +39,12 @@ String AdiWiFiManager::HTML_Header() {
   #endif
 
   #if !defined(ASSETS_LOCATION)
-    BACKGROUND = "background-color: #9E9E9E;"
+    BACKGROUND = "background-color: #9E9E9E;";
   #else
     chosen_background = getRandomAssetFile("/Assets/Backgrounds");
     BACKGROUND = "background-image: url('/asset_bg?f=";
     BACKGROUND += chosen_background;
-    BACKGROUND += "');
-      background-size: cover;
-      background-repeat: no-repeat;
-      background-position: center;
-      background-attachment: fixed;";
+    BACKGROUND += "');background-size: cover;background-repeat: no-repeat;background-position: center;background-attachment: fixed;";
   #endif
 
   return R"rawliteral(
@@ -918,35 +914,38 @@ int AdiWiFiManager::getFileTypePriority(String filename, String ftype) {
   return 5;
 }
 
-String AdiWiFiManager::getRandomAssetFile(const String &folder) {
+#if defined(ASSETS_LOCATION)
 
-  String files[MAX_ASSET_FILES];
-  int count = 0;
+  String AdiWiFiManager::getRandomAssetFile(const String &folder) {
 
-  File dir = ASSETS_LOCATION.open(folder);
-  if(dir && dir.isDirectory()) 
-  {
-    File file = dir.openNextFile();
-    while(file && count < MAX_ASSET_FILES) 
+    String files[MAX_ASSET_FILES];
+    int count = 0;
+
+    File dir = ASSETS_LOCATION.open(folder);
+    if(dir && dir.isDirectory()) 
     {
-      if(!file.isDirectory()) 
+      File file = dir.openNextFile();
+      while(file && count < MAX_ASSET_FILES) 
       {
-        String name = file.name();
-        int lastSlash = name.lastIndexOf('/');
-        if(lastSlash != -1) name = name.substring(lastSlash + 1);
-        String lower = name; lower.toLowerCase();
-        if(lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".bmp") || lower.endsWith(".gif") || lower.endsWith(".png"))
+        if(!file.isDirectory()) 
         {
-          files[count++] = name;
+          String name = file.name();
+          int lastSlash = name.lastIndexOf('/');
+          if(lastSlash != -1) name = name.substring(lastSlash + 1);
+          String lower = name; lower.toLowerCase();
+          if(lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".bmp") || lower.endsWith(".gif") || lower.endsWith(".png"))
+          {
+            files[count++] = name;
+          }
         }
+        file.close();
+        file = dir.openNextFile();
       }
-      file.close();
-      file = dir.openNextFile();
+      dir.close();
     }
-    dir.close();
+    return (count == 0) ? "" : files[random(0, count)];
   }
-  return (count == 0) ? "" : files[random(0, count)];
-}
+#endif
 
 //SD Card Functions
 
@@ -3345,7 +3344,7 @@ String AdiWiFiManager::getRandomAssetFile(const String &folder) {
 
 #ifdef SPIFFS_ENABLED
 
-  void AdiWiFiManager::SPIFFS_Directory(String path) {
+  void AdiWiFiManager::SPIFFS_Directory() {
     numfiles = 0;
 
     File root = SPIFFS.open("/");
@@ -3383,7 +3382,7 @@ String AdiWiFiManager::getRandomAssetFile(const String &folder) {
     String icon1, icon2;
     String Fsize1, Fsize2;
     int index = 0;
-    SPIFFS_Directory("/");
+    SPIFFS_Directory();
 
     String page = HTML_Header();
     page += R"rawliteral(
@@ -4686,7 +4685,7 @@ void AdiWiFiManager::StartWebserver() {
     server.on("/spiffs_dir", HTTP_GET, [this](AsyncWebServerRequest * request) {
       Handle_SPIFFS_Dir(request);
     });
-    
+
     server.on("/spiffsupload", HTTP_GET, [this](AsyncWebServerRequest *request) {
       Handle_SPIFFS_File_Upload(request);
     });
