@@ -12,7 +12,7 @@
 #endif
 
 #if !defined(ASSETS_LOCATION)
-#error "AdiWiFiManager: ASSETS_LOCATION not defined. Set it to SD or LittleFS in your AdiWiFiManagerConfig.h."
+#warning "AdiWiFiManager: ASSETS_LOCATION not defined. Set it to SD or LittleFS in your AdiWiFiManagerConfig.h."
 #endif
 
 #ifndef ARDUINO_ARCH_ESP32
@@ -64,7 +64,6 @@
 
 #include "stdlib_noniso.h"
 #include <functional>
-#include "Update.h"
 #include "StreamString.h"
 
 #ifdef SD_ENABLED
@@ -73,6 +72,14 @@
 
 #ifdef LittleFS_ENABLED
   #include <LittleFS.h>
+#endif
+
+#ifdef SPIFFS_ENABLED
+  #include <SPIFFS.h>
+#endif
+
+#ifdef OTA_ENABLED
+  #include <Update.h>
 #endif
 
 typedef void (*DebugLogCallback)(const char *message);
@@ -146,6 +153,8 @@ class AdiWiFiManager {
 		String getRandomAssetFile(const String &folder);
 		int getFileTypePriority(String filename, String ftype);
 
+	#ifdef SD_ENABLED
+
 		int  SD_countFilesInDirectory(String path);
 		void SD_Directory(String path);
 		void SD_createDirectoryRecursive(const String& path);
@@ -159,6 +168,10 @@ class AdiWiFiManager {
 		void Handle_SD_File_Move(AsyncWebServerRequest *request);
 		void Handle_SD_Create_Folder(AsyncWebServerRequest *request);
 
+	#endif
+
+	#ifdef LittleFS_ENABLED
+
 		int  LittleFS_countFilesInDirectory(String path);
 		void LittleFS_Directory(String path);
 		void LittleFS_createDirectoryRecursive(const String& path);
@@ -171,8 +184,23 @@ class AdiWiFiManager {
 		void Handle_LittleFS_File_Rename(AsyncWebServerRequest *request);
 		void Handle_LittleFS_File_Move(AsyncWebServerRequest *request);
 		void Handle_LittleFS_Create_Folder(AsyncWebServerRequest *request);
+	
+	#endif
 
+	#ifdef SPIFFS_ENABLED
+		void SPIFFS_Directory(String path);
+		void Handle_SPIFFS_Dir(AsyncWebServerRequest * request);
+		void Handle_SPIFFS_File_Upload(AsyncWebServerRequest *request);
+		void on_SPIFFS_File_Upload(AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final);
+		void Handle_SPIFFS_File_Download(AsyncWebServerRequest *request);
+		void Handle_SPIFFS_File_Delete(AsyncWebServerRequest *request);
+		void Handle_SPIFFS_File_Rename(AsyncWebServerRequest *request);
+	#endif
+
+	#ifdef OTA_ENABLED
 		void Handle_OTA(AsyncWebServerRequest *request);
+	#endif
+	
 
 		String ConvBinUnits(uint64_t bytes, int resolution);
 		String EncryptionType(wifi_auth_mode_t encryptionType);
