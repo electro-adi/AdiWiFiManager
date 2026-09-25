@@ -26,6 +26,10 @@ String AdiWiFiManager::HTML_Header() {
     FS_BUTTONS += "<a href='/sd_dir'>SD Files</a>";
   #endif
 
+  #ifdef SD_MMC_ENABLED
+    FS_BUTTONS += "<a href='/sd_dir'>SD_MMC Files</a>";
+  #endif
+
   #ifdef LittleFS_ENABLED
     FS_BUTTONS += "<a href='/littlefs_dir'>LittleFS Files</a>";
   #endif
@@ -693,20 +697,20 @@ void AdiWiFiManager::_connectToWiFi(String ssid, String pass) {
 
 			for(int j = 0; j < wifiSSIDCount; j++)//go through the available networks
 			{
-			if(wifiSSIDs[j].duplicate) continue;
-			String scanned_ssid = wifiSSIDs[j].SSID;
+        if(wifiSSIDs[j].duplicate) continue;
+        String scanned_ssid = wifiSSIDs[j].SSID;
 
-			if(stored_ssid == scanned_ssid)
-			{
-				_DebugLog("Connecting to saved network " + String(i) + " - SSID: " + stored_ssid + ", PSWD: " + stored_pass);
-				WiFi.begin(stored_ssid.c_str(), stored_pass.c_str());
-				connecting = true;
-				break;
-			}
+        if(stored_ssid == scanned_ssid)
+        {
+          _DebugLog("Connecting to saved network " + String(i) + " - SSID: " + stored_ssid + ", PSWD: " + stored_pass);
+          WiFi.begin(stored_ssid.c_str(), stored_pass.c_str());
+          connecting = true;
+          break;
+        }
 			}
 			if(connecting) break;
 		}
-		_preferences.end();
+		  _preferences.end();
 		}
 		else//no stations available to connect or scan failed
 		{
@@ -947,7 +951,7 @@ int AdiWiFiManager::getFileTypePriority(String filename, String ftype) {
   }
 #endif
 
-//SD Card Functions
+//SD Card Functions (Normal SD)
 
 #ifdef SD_ENABLED
 
@@ -2125,6 +2129,1202 @@ int AdiWiFiManager::getFileTypePriority(String filename, String ftype) {
     if(!SD.exists(fullPath)) 
     {
       if(SD.mkdir(fullPath)) 
+      {
+        _DebugLog("Created folder: " + fullPath);
+      } 
+      else 
+      {
+        _DebugLog("Failed to create folder");
+      }
+    }
+    else
+    {
+      _DebugLog("Folder already exists");
+    }
+    
+    request->redirect("/sd_dir?path=" + fullPath);
+  }
+
+#endif
+
+//SD Card Functions (SD_MMC)
+
+#ifdef SD_MMC_ENABLED
+
+  int AdiWiFiManager::SD_MMC_countFilesInDirectory(String path) {
+    int count = 0;
+    File dir = SD_MMC.open(path);
+    if(dir) 
+    {
+      File file = dir.openNextFile();
+      while(file) 
+      {
+        count++;
+        file.close();
+        file = dir.openNextFile();
+      }
+      dir.close();
+    }
+    return count;
+  }
+
+  void AdiWiFiManager::SD_MMC_Directory(String path = "/") {
+    numfiles = 0;
+    File root = SD_MMC.open(path);
+    if(root) 
+    {
+      root.rewindDirectory();
+      File file = root.openNextFile();
+      while(file && numfiles < MAX_FILES) 
+      {
+        const char* name = file.name();
+        String filename = (name[0] == '/' ? String(name + 1) : String(name));
+        
+        int lastSlash = filename.lastIndexOf('/');
+        if(lastSlash != -1) filename = filename.substring(lastSlash + 1);
+        
+        Filenames[numfiles].filename = filename;
+        Filenames[numfiles].ftype = (file.isDirectory() ? "Dir" : "File");
+        
+        if(file.isDirectory()) {
+          String fullPath = path;
+          if(!fullPath.endsWith("/")) fullPath += "/";
+          fullPath += filename;
+          int fileCount = SD_MMC_countFilesInDirectory(fullPath);
+          Filenames[numfiles].fsize = String(fileCount) + " items";
+        } else {
+          Filenames[numfiles].fsize = ConvBinUnits(file.size(), 1);
+        }
+        
+        file.close();
+        file = root.openNextFile();
+        numfiles++;
+      }
+      root.close();
+    }
+    
+    for(int i = 0; i < numfiles - 1; i++) {
+      for(int j = i + 1; j < numfiles; j++) {
+        int priority_i = getFileTypePriority(Filenames[i].filename, Filenames[i].ftype);
+        int priority_j = getFileTypePriority(Filenames[j].filename, Filenames[j].ftype);
+        
+        if(priority_i > priority_j) {
+          fileinfo temp = Filenames[i];
+          Filenames[i] = Filenames[j];
+          Filenames[j] = temp;
+        }
+      }
+    }
+  }
+
+  void AdiWiFiManager::SD_MMC_createDirectoryRecursive(const String& path) {
+    String currentPath = "";
+    int start = 1;
+    int end = path.indexOf('/', start);
+
+    while(end != -1) 
+    {
+      currentPath += "/" + path.substring(start, end);
+      if(!SD_MMC.exists(currentPath)) 
+      {
+        if(!SD_MMC.mkdir(currentPath)) _DebugLog("Failed to create directory: " + currentPath);
+      }
+      start = end + 1;
+      end = path.indexOf('/', start);
+    }
+
+    if(start < path.length()) 
+    {
+      currentPath += "/" + path.substring(start);
+      if(!SD_MMC.exists(currentPath)) SD_MMC.mkdir(currentPath);
+    }
+  }
+
+  void AdiWiFiManager::SD_MMC_deleteRecursive(String path) {
+    File file = SD_MMC.open(path);
+    if(!file) return;
+    
+    if(file.isDirectory()) 
+    {
+      file.rewindDirectory();
+      File entry = file.openNextFile();
+      while(entry) 
+      {
+        String entryPath = path;
+        if(!entryPath.endsWith("/")) entryPath += "/";
+        
+        const char* name = entry.name();
+        String entryName = (name[0] == '/' ? String(name + 1) : String(name));
+        int lastSlash = entryName.lastIndexOf('/');
+        if(lastSlash != -1) entryName = entryName.substring(lastSlash + 1);
+        
+        entryPath += entryName;
+        
+        if(entry.isDirectory()) 
+        {
+          entry.close();
+          SD_MMC_deleteRecursive(entryPath);
+        } 
+        else 
+        {
+          entry.close();
+          SD_MMC.remove(entryPath);
+        }
+        entry = file.openNextFile();
+      }
+      file.close();
+      SD_MMC.rmdir(path);
+    } 
+    else 
+    {
+      file.close();
+      SD_MMC.remove(path);
+    }
+  }
+
+  void AdiWiFiManager::Handle_SD_MMC_Dir(AsyncWebServerRequest *request) {
+    String currentPath = "/";
+    if(request->hasParam("path")) 
+    {
+      currentPath = request->getParam("path")->value();
+      if(!currentPath.startsWith("/")) currentPath = "/" + currentPath;
+    }
+    
+    String Fname1, Fname2;
+    String icon1, icon2;
+    String Fsize1, Fsize2;
+    int index = 0;
+    SD_MMC_Directory(currentPath);
+
+    String page = HTML_Header();
+    page += R"rawliteral(
+    <style>
+      .file_box {
+        background: rgba(38, 38, 38, 0.5);
+        backdrop-filter: blur(5px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+        border-radius: 1em;
+        padding: 2em;
+        margin: 3em auto;
+        width: fit-content;
+        color: white;
+        font-family: "Segoe UI", sans-serif;
+        font-size: 1.05em;
+        animation: fadeIn 1.2s ease-out;
+      }
+
+      .path_display {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 0.75em 1.2em;
+        border-radius: 0.75em;
+        margin-bottom: 1.5em;
+        font-family: monospace;
+        text-align: center;
+      }
+
+      .file_controls {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 1em;
+        margin-bottom: 2em;
+        animation: fadeIn 1.2s ease-out;
+      }
+
+      .file_controls a {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 0.75em 1.2em;
+        color: white;
+        border-radius: 0.75em;
+        text-decoration: none;
+        font-weight: bold;
+        transition: background 0.2s ease;
+      }
+
+      .file_controls a:hover {
+        background-color: rgba(255, 255, 255, 0.3);
+        transform: scale(1.02);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background-color: rgba(255, 255, 255, 0.05);
+        border-radius: 0.75em;
+        overflow: hidden;
+        table-layout: fixed;
+      }
+
+      th, td {
+        padding: 0.9em;
+        text-align: left;
+        border-bottom: 1px solid rgba(255,255,255,0.2);
+        word-wrap: break-word;
+        vertical-align: top;
+      }
+
+      .file_group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6em;
+        padding: 1.2em;
+        transition: background 0.2s ease;
+        border-radius: 0.75em;
+      }
+
+      .file_group:hover {
+        background-color: rgba(255, 255, 255, 0.07);
+        cursor: pointer;
+      }
+
+      .file_name {
+        display: flex;
+        align-items: center;
+        gap: 0.8em;
+        font-weight: 500;
+        font-size: 1.1em;
+      }
+
+      .file_name img {
+        width: 32px;
+        height: 32px;
+        object-fit: contain;
+      }
+
+      td.divider {
+        width: 2px;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .popup_box .spinner {
+        display: block;
+        width: 32px; height: 32px;
+        border: 4px solid rgba(255,255,255,0.2);
+        border-top-color: #00c6ff;
+        border-radius: 50%;
+        margin: 0 auto 0.8em auto;
+        animation: spin 0.8s linear infinite;
+      }
+
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .popup_box.processing .popup_buttons { display: none; }
+    </style>
+
+    <div class='file_box'>
+      <h2>📁 SD_MMC File Manager</h2>
+      <div class='path_display'>)rawliteral";
+    
+    page += currentPath;
+    page += R"rawliteral(</div>
+      <div class='file_controls'>)rawliteral";
+    
+    if(currentPath != "/") {
+      page += "<a href=\"#\" onclick=\"goBack(); return false;\">Go Back</a>";
+    }
+
+    page += "<a href='/sdupload?path=" + currentPath + "'>Upload</a>";
+  
+    page += R"rawliteral(
+        <a href="#" onclick="showCreateFolder(); return false;">New Folder</a>
+        <a href="#" id="downloadBtn" onclick="handleActionButton('download'); return false;">Download</a>
+        <a href="#" id="renameBtn" onclick="handleActionButton('rename'); return false;">Rename</a>
+        <a href="#" id="moveBtn" onclick="handleActionButton('move'); return false;">Move</a>
+        <a href="#" id="deleteBtn" onclick="handleActionButton('delete'); return false;">Delete</a>
+      </div>
+    )rawliteral";
+
+    if(numfiles > 0)
+    {
+      page += "<table>";
+
+      while(index < numfiles) 
+      {
+        Fname1 = Filenames[index].filename;
+        Fsize1 = Filenames[index].fsize;
+
+        if(Filenames[index].ftype == "Dir")
+        {
+          icon1 = "/folder_icon";
+        }
+        else
+        {
+          if (Fname1.endsWith(".jpg") || Fname1.endsWith(".png") || Fname1.endsWith(".bmp")) icon1 = "/img_icon";
+          else if (Fname1.endsWith(".mp4") || Fname1.endsWith(".avi") || Fname1.endsWith(".gif") || Fname1.endsWith(".mjpeg")) icon1 = "/video_icon";
+          else if (Fname1.endsWith(".mp3") || Fname1.endsWith(".wav") || Fname1.endsWith(".aac")) icon1 = "/audio_icon";
+          else if (Fname1.endsWith(".txt")) icon1 = "/txt_icon";
+          else icon1 = "/file_icon";
+        }
+
+        if(index + 1 < numfiles)
+        {
+          Fname2 = Filenames[index + 1].filename;
+          Fsize2 = Filenames[index + 1].fsize;
+
+          if(Filenames[index + 1].ftype == "Dir")
+          {
+            icon2 = "/folder_icon";
+          }
+          else
+          {
+          if (Fname2.endsWith(".jpg") || Fname2.endsWith(".png") || Fname2.endsWith(".bmp")) icon2 = "/img_icon";
+          else if (Fname2.endsWith(".mp4") || Fname2.endsWith(".avi") || Fname2.endsWith(".gif") || Fname2.endsWith(".mjpeg")) icon2 = "/video_icon";
+          else if (Fname2.endsWith(".mp3") || Fname2.endsWith(".wav") || Fname2.endsWith(".aac")) icon2 = "/audio_icon";
+          else if (Fname2.endsWith(".txt")) icon2 = "/txt_icon";
+          else icon2 = "/file_icon";
+          }
+        }
+        else
+        {
+          Fname2 = "";
+          Fsize2 = "";
+          icon2 = "";
+        }
+
+        page += "<tr>";
+        page += "<td colspan='3'>";
+        page += "<div class='file_group' data-filename='" + Fname1 +"' data-type='" + Filenames[index].ftype + "'>";
+        page += "<div class='file_name'>";
+        page += "<img src='" + icon1 + "'>";
+        page += Fname1;
+        page += "</div>";
+        if(Filenames[index].ftype == "Dir") {
+          page += "<div><strong>Items: </strong>" + Fsize1 + "</div>";
+        } else {
+          page += "<div><strong>Size: </strong>" + Fsize1 + "</div>";
+        }
+        page += "</div>";
+        page += "</td>";
+        page += "<td class='divider'></td>";
+
+        if(index + 1 < numfiles) 
+        {
+          page += "<td colspan='3'>";
+          page += "<div class='file_group' data-filename='" + Fname2 +"' data-type='" + Filenames[index + 1].ftype + "'>";
+          page += "<div class='file_name'>";
+          page += "<img src='" + icon2 + "'>";
+          page += Fname2;
+          page += "</div>";
+          if(Filenames[index + 1].ftype == "Dir") {
+            page += "<div><strong>Items: </strong>" + Fsize2 + "</div>";
+          } else {
+            page += "<div><strong>Size: </strong>" + Fsize2 + "</div>";
+          }
+          page += "</div>";
+          page += "</td>";
+          page += "</tr>";
+        } 
+        else
+        {
+          page += "<td colspan='3'></td>";
+        }
+        page += "</tr>";
+        index += 2;
+      }
+      page += R"rawliteral(
+        </table>
+        </div>
+
+        <div id="filePopup" class="popup_overlay">
+          <div class="popup_box">
+            <div id="filePopup_text"></div>
+            <div class="popup_buttons">
+              <button class="confirm_btn" onclick="startFileAction()">Yes</button>
+              <button class="cancel_btn" onclick="closeFilePopup()">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <script>
+          let mode = '';
+          let selectedFiles = [];
+          const currentPath = ')rawliteral";
+          page += currentPath;
+          page += R"rawliteral(';
+
+          function goBack() {
+            const parts = currentPath.split('/').filter(p => p);
+            parts.pop();
+            const newPath = '/' + parts.join('/');
+            window.location.href = '/sd_dir?path=' + encodeURIComponent(newPath);
+          }
+
+          function resetSelection() {
+            selectedFiles = [];
+            document.querySelectorAll('.file_group').forEach(el => el.style.backgroundColor = '');
+          }
+
+          function exitMode() {
+            mode = '';
+            resetSelection();
+            document.querySelector('.file_box h2').textContent = '📁 SD_MMC File Manager';
+            document.getElementById('deleteBtn').textContent = 'Delete';
+            document.getElementById('moveBtn').textContent = 'Move';
+            document.getElementById('downloadBtn').textContent = 'Download';
+            document.getElementById('renameBtn').textContent = 'Rename';
+          }
+
+          function handleActionButton(action) {
+            if (mode !== action) {
+              mode = action;
+              resetSelection();
+              const labels = {
+                delete: 'Select files/folders to delete',
+                move: 'Select files/folders to move',
+                download: 'Click on a file to download',
+                rename: 'Click on a file/folder to rename'
+              };
+              document.querySelector('.file_box h2').textContent = labels[action];
+              document.getElementById(action + 'Btn').textContent = 'Cancel';
+              return;
+            }
+
+            if (action === 'delete' || action === 'move') {
+              if (selectedFiles.length === 0) { exitMode(); return; }
+              const popup = document.getElementById('filePopup');
+              const popupText = document.getElementById('filePopup_text');
+              if (action === 'delete') {
+                popupText.innerHTML = 'Delete ' + selectedFiles.length + ' item(s)?';
+              } else {
+                popupText.innerHTML = 'Move ' + selectedFiles.length + ' item(s) to:<br><input id="dest_path" type="text" placeholder="/destination/folder" value="' + currentPath + '" style="margin-top: 1em; width: 100%; padding: 0.5em;">';
+              }
+              popup.style.display = 'flex';
+            } else {
+              exitMode();
+            }
+          }
+
+          function fileClickHandler(e) {
+            const filename = e.currentTarget.getAttribute('data-filename');
+            const type = e.currentTarget.getAttribute('data-type');
+            const popup = document.getElementById('filePopup');
+            const popupText = document.getElementById('filePopup_text');
+            const fullPath = currentPath === '/' ? '/' + filename : currentPath + '/' + filename;
+
+            if (mode === 'delete' || mode === 'move') {
+              e.stopPropagation();
+              const idx = selectedFiles.indexOf(fullPath);
+              if (idx > -1) {
+                selectedFiles.splice(idx, 1);
+                e.currentTarget.style.backgroundColor = '';
+              } else {
+                selectedFiles.push(fullPath);
+                e.currentTarget.style.backgroundColor = mode === 'delete' ? 'rgba(255,0,0,0.3)' : 'rgba(0,120,255,0.3)';
+              }
+              const label = mode === 'delete' ? 'Delete' : 'Move';
+              document.getElementById(mode + 'Btn').textContent = selectedFiles.length > 0 ? `Confirm ${label} (${selectedFiles.length})` : 'Cancel';
+              document.querySelector('.file_box h2').textContent = `Select files/folders to ${mode} (${selectedFiles.length} selected)`;
+              return;
+            }
+
+            if (mode === 'download') {
+              popupText.innerHTML = 'Download "<b>' + filename + '</b>"?';
+              selectedFiles = [fullPath];
+              popup.style.display = 'flex';
+              return;
+            }
+
+            if (mode === 'rename') {
+              popupText.innerHTML = 'Rename "<b>' + filename + '</b>": <br><input id="new_name" type="text" placeholder="New name" style="margin-top: 1em; width: 100%;">';
+              selectedFiles = [fullPath];
+              popup.style.display = 'flex';
+              return;
+            }
+
+            if (type === 'Dir') {
+              window.location.href = '/sd_dir?path=' + encodeURIComponent(fullPath);
+            } else {
+              const ext = filename.split('.').pop().toLowerCase();
+              const images = ['jpg', 'jpeg', 'png', 'bmp', 'gif'];
+              const videos = ['mp4', 'avi', 'webm', 'mjpeg'];
+              const audio  = ['mp3', 'wav', 'aac'];
+              const text   = ['txt'];
+              if (images.includes(ext) || videos.includes(ext) || audio.includes(ext) || text.includes(ext)) {
+                window.open(fullPath, '_blank');
+              } else {
+                alert("No preview available for this file type.");
+              }
+            }
+          }
+
+          document.querySelectorAll('.file_group').forEach(el => el.addEventListener('click', fileClickHandler));
+
+          async function startFileAction() {
+            if (mode === 'createfolder') {
+              const folderName = document.getElementById('folder_name').value.trim();
+              if (!folderName) { alert("Enter folder name"); return; }
+              window.location.href = '/sdcreatefolder?path=' + encodeURIComponent(currentPath) +
+                                    '&name=' + encodeURIComponent(folderName);
+              closeFilePopup();
+              return;
+            }
+
+            if (selectedFiles.length === 0) return;
+
+            const popup = document.getElementById('filePopup');
+            const popupBox = popup.querySelector('.popup_box');
+            const popupText = document.getElementById('filePopup_text');
+
+            if (mode === 'download') {
+              const filePath = selectedFiles[0];
+              const filenameOnly = filePath.split('/').pop();
+              closeFilePopup();
+              fetch('/sddownload?filename=' + encodeURIComponent(filePath))
+                .then(response => {
+                  if (!response.ok) throw new Error('Server returned ' + response.status);
+                  return response.blob();
+                })
+                .then(blob => {
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = filenameOnly;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                  exitMode();
+                })
+                .catch(err => alert('Download failed: ' + err.message));
+            }
+
+            else if (mode === 'delete') {
+              popupBox.classList.add('processing');
+              popupText.innerHTML = '<div class="spinner"></div><div>Deleting ' + selectedFiles.length + ' item(s)...</div>';
+
+              let deleteCount = 0;
+              for (let i = 0; i < selectedFiles.length; i++) {
+                try {
+                  const response = await fetch('/sddelete?filename=' + encodeURIComponent(selectedFiles[i]) + '&path=' + encodeURIComponent(currentPath));
+                  if (response.ok) deleteCount++;
+                } catch (err) { console.error('Delete failed:', err); }
+              }
+              window.location.href = '/sd_dir?path=' + encodeURIComponent(currentPath);
+            }
+
+            else if (mode === 'move') {
+              const destPath = document.getElementById('dest_path').value;
+              if (!destPath || destPath.trim() === "") { alert("Enter destination path"); return; }
+
+              popupBox.classList.add('processing');
+              popupText.innerHTML = '<div class="spinner"></div><div>Moving ' + selectedFiles.length + ' item(s)...</div>';
+              let moveCount = 0;
+              for (let i = 0; i < selectedFiles.length; i++) {
+                try {
+                  const response = await fetch('/sdmove?source=' + encodeURIComponent(selectedFiles[i]) +
+                                                '&destination=' + encodeURIComponent(destPath) +
+                                                '&path=' + encodeURIComponent(currentPath));
+                  if (response.ok) moveCount++;
+                } catch (err) { console.error('Move failed:', err); }
+              }
+              window.location.href = '/sd_dir?path=' + encodeURIComponent(currentPath);
+            }
+
+            else if (mode === 'rename') {
+              const newName = document.getElementById('new_name').value;
+              if (newName && newName.trim() !== "") {
+                window.location.href = "/sdrename?old=" + encodeURIComponent(selectedFiles[0]) + "&new=" + encodeURIComponent(newName) + "&path=" + encodeURIComponent(currentPath);
+              } else {
+                alert("Enter a new filename");
+              }
+            }
+          }
+
+          function closeFilePopup() {
+            const popup = document.getElementById('filePopup');
+            popup.style.display = 'none';
+            popup.querySelector('.popup_box').classList.remove('processing');
+
+            if (mode === 'delete' || mode === 'move') {
+              exitMode();
+            } else {
+              selectedFiles = [];
+              document.querySelectorAll('.file_group').forEach(el => el.style.backgroundColor = '');
+            }
+          }
+
+          function showCreateFolder() {
+            const popup = document.getElementById('filePopup');
+            const popupText = document.getElementById('filePopup_text');
+            
+            popupText.innerHTML = 'Create new folder in current directory:<br><input id="folder_name" type="text" placeholder="Folder name" style="margin-top: 1em; width: 100%; padding: 0.5em;">';
+            popup.style.display = 'flex';
+            
+            mode = 'createfolder';
+          }
+        </script>
+
+        <style>
+          .popup_overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+          }
+
+          .popup_box {
+            background: rgba(27, 27, 27, 1);
+            padding: 2em;
+            border-radius: 1em;
+            color: white;
+            text-align: center;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+          }
+
+          .popup_buttons {
+            margin-top: 1.5em;
+            display: flex;
+            justify-content: space-around;
+          }
+
+          .popup_buttons button {
+            padding: 0.6em 1.5em;
+            border: none;
+            border-radius: 0.5em;
+            cursor: pointer;
+            font-weight: bold;
+            color: white;
+            transition: background 0.2s ease;
+          }
+
+          .confirm_btn {
+            background-color: rgba(91, 91, 91, 1);
+          }
+
+          .confirm_btn:hover {
+            background-color: #00e676;
+          }
+
+          .cancel_btn {
+            background-color: rgba(91, 91, 91, 1);
+          }
+
+          .cancel_btn:hover {
+            background-color: #ef5350;
+          }
+        </style>
+      )rawliteral";
+    }
+    else
+    {
+      page += "<h3>No Files Found</h3>";
+      page += "</div>";
+    }
+    request->send(200, "text/html", page);
+  }
+
+  void AdiWiFiManager::Handle_SD_MMC_File_Upload(AsyncWebServerRequest *request) {
+    if(request->method() == HTTP_GET) 
+    {
+      String uploadPath = "/";
+      if(request->hasParam("path")) 
+      {
+        uploadPath = request->getParam("path")->value();
+        if(!uploadPath.startsWith("/")) uploadPath = "/" + uploadPath;
+      }
+
+      String page = HTML_Header();
+      page += R"rawliteral(
+      <style>
+        .file_box {
+          background: rgba(38, 38, 38, 0.5);
+          backdrop-filter: blur(5px);
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+          border-radius: 1em;
+          padding: 2em;
+          margin: 3em auto;
+          width: fit-content;
+          color: white;
+          font-family: "Segoe UI", sans-serif;
+          font-size: 1.05em;
+          animation: fadeIn 1.2s ease-out;
+        }
+
+        .upload_form {
+          display: flex;
+          flex-direction: column;
+          gap: 1.5em;
+          align-items: center;
+        }
+
+        .custom_file_input {
+          position: relative;
+          display: inline-block;
+          overflow: hidden;
+          border-radius: 0.75em;
+          background: rgba(255, 255, 255, 0.1);
+          cursor: pointer;
+          font-weight: bold;
+          padding: 0.75em 1.2em;
+          color: white;
+          transition: background 0.2s ease;
+          width: 100%;
+          text-align: center;
+        }
+
+        .custom_file_input:hover {
+          background-color: rgba(255, 255, 255, 0.3);
+          transform: scale(1.02);
+        }
+
+        .custom_file_input input[type="file"] {
+          position: absolute;
+          left: 0;
+          top: 0;
+          opacity: 0;
+          cursor: pointer;
+          width: 100%;
+          height: 100%;
+        }
+
+        .filename_note {
+          font-size: 0.9em;
+          font-style: italic;
+          color: #ccc;
+        }
+
+        .upload_button, .toggle_button {
+          width: 100%;
+          background: rgba(255, 255, 255, 0.1);
+          padding: 0.75em 1.5em;
+          color: white;
+          border: none;
+          border-radius: 0.75em;
+          font-weight: bold;
+          cursor: pointer;
+          position: relative;
+          overflow: hidden;
+          transition: background 0.2s ease;
+        }
+
+        .upload_button:hover, .toggle_button:hover {
+          background-color: rgba(255, 255, 255, 0.3);
+          transform: scale(1.02);
+        }
+
+        .upload_button .progress_fill {
+          background: linear-gradient(90deg, #00c6ff, #0072ff);
+          position: absolute;
+          left: 0;
+          top: 0;
+          height: 100%;
+          width: 0%;
+          z-index: 0;
+          transition: width 0.2s ease;
+        }
+
+        .upload_button span {
+          position: relative;
+          z-index: 1;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      </style>
+
+      <div class="file_box">
+        <h2>Upload Files/Folders</h2>
+
+        <div class="upload_form">
+          <label class="custom_file_input">
+            <span id="inputLabel">Choose Files</span>
+            <input id="fileInput" type="file" multiple>
+          </label>
+
+          <button type="button" class="toggle_button" onclick="toggleUploadMode()">
+            <span id="modeText">Switch to Folder Mode</span>
+          </button>
+
+          <div id="fileNameNote" class="filename_note">No files selected</div>
+
+          <button type="button" class="upload_button" id="uploadBtn">
+            <div class="progress_fill" id="progressFill"></div>
+            <span id="uploadText">Upload</span>
+          </button>
+        </div>
+      </div>
+      <script>
+        const uploadPath = ')rawliteral" + uploadPath + R"rawliteral(';
+        const fileInput = document.getElementById('fileInput');
+        const fileNameNote = document.getElementById('fileNameNote');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadText = document.getElementById('uploadText');
+        const progressFill = document.getElementById('progressFill');
+        const inputLabel = document.getElementById('inputLabel');
+        const modeText = document.getElementById('modeText');
+        
+        let folderMode = false;
+
+        function toggleUploadMode() {
+          folderMode = !folderMode;
+          fileInput.value = '';
+          
+          if (folderMode) {
+            fileInput.setAttribute('webkitdirectory', '');
+            fileInput.setAttribute('directory', '');
+            fileInput.removeAttribute('multiple');
+            inputLabel.textContent = 'Choose Folder';
+            modeText.textContent = 'Switch to File Mode';
+            fileNameNote.textContent = 'No folder selected';
+          } else {
+            fileInput.removeAttribute('webkitdirectory');
+            fileInput.removeAttribute('directory');
+            fileInput.setAttribute('multiple', '');
+            inputLabel.textContent = 'Choose Files';
+            modeText.textContent = 'Switch to Folder Mode';
+            fileNameNote.textContent = 'No files selected';
+          }
+        }
+
+        fileInput.addEventListener('change', () => {
+          const files = fileInput.files;
+          if (files.length === 0) {
+            fileNameNote.textContent = folderMode ? 'No folder selected' : 'No files selected';
+          } else if (files.length === 1) {
+            fileNameNote.textContent = `Selected: ${files[0].name}`;
+          } else {
+            fileNameNote.textContent = `Selected: ${files.length} files`;
+          }
+        });
+
+        function getTotalSize(files) {
+          let total = 0;
+          for (let i = 0; i < files.length; i++) {
+            total += files[i].size;
+          }
+          return total;
+        }
+
+        uploadBtn.addEventListener('click', async () => {
+          const files = fileInput.files;
+          if (files.length === 0) return alert('Please select files');
+
+          uploadBtn.disabled = true;
+          let totalUploaded = 0;
+
+          for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const formData = new FormData();
+            formData.append('filename', file);
+            const relPath = file.webkitRelativePath || file.name;
+            const base = uploadPath === '/' ? '' : uploadPath;
+            formData.append('filepath', base + '/' + relPath);
+
+            try {
+              await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.onprogress = (e) => {
+                  if (e.lengthComputable) {
+                    const filePercent = (e.loaded / e.total) * 100;
+                    const overallPercent = ((totalUploaded + e.loaded) / getTotalSize(files)) * 100;
+                    progressFill.style.width = overallPercent + '%';
+                    uploadText.textContent = `${Math.round(overallPercent)}%`;
+                  }
+                };
+
+                xhr.onload = () => {
+                  if (xhr.status === 200) {
+                    totalUploaded += file.size;
+                    resolve();
+                  } else {
+                    reject();
+                  }
+                };
+
+                xhr.onerror = () => reject();
+                
+                xhr.open('POST', '/sdupload', true);
+                xhr.send(formData);
+              });
+            } catch (err) {
+              console.error('Upload failed:', err);
+            }
+          }
+          uploadText.textContent = 'Done!';
+          setTimeout(() => {
+            window.location.href = '/sd_dir?path=' + encodeURIComponent(uploadPath);
+          }, 800);
+        });
+      </script>
+      )rawliteral";
+      request->send(200, "text/html", page);
+      return;
+    }
+  }
+
+  void AdiWiFiManager::on_SD_MMC_File_Upload(AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
+
+    static int start = 0;
+    static int uploadtime = 0;
+    static int uploadsize = 0;
+    static bool uploadAborted = false;
+    static String filepath = "";
+
+    if(!index) 
+    {
+      uploadAborted = false;
+      filepath = "/";
+
+      if(request->hasArg("filepath"))
+      {
+        filepath += request->arg("filepath");
+      }
+      else
+      {
+        filepath += filename;
+      }
+
+      size_t freeSpace = SD_MMC.totalBytes() - SD_MMC.usedBytes();
+      if(request->contentLength() > 0 && request->contentLength() > freeSpace) 
+      {
+        _DebugLog("Upload rejected: not enough space for " + filepath + " (" + String(request->contentLength()) + " needed, " + String(freeSpace) + " free)");
+        uploadAborted = true;
+        request->send(507, "text/plain", "Not enough storage space");
+        return;
+      }
+
+      int lastSlash = filepath.lastIndexOf('/');
+      if(lastSlash > 0)
+      {
+        String dirPath = filepath.substring(0, lastSlash);
+        SD_MMC_createDirectoryRecursive(dirPath);
+      }
+
+      if(request->_tempFile) request->_tempFile.close();
+
+      request->_tempFile = SD_MMC.open(filepath, FILE_WRITE);
+      if(!request->_tempFile)
+      {
+        _DebugLog("Failed to create file: " + filepath);
+        return;
+      }
+      _DebugLog("Started upload: " + filepath);
+      start = millis();
+    }
+
+    if(uploadAborted) return;
+
+    if(request->_tempFile && len) 
+    {
+      size_t freeSpace = SD_MMC.totalBytes() - SD_MMC.usedBytes();
+      if(len > freeSpace) 
+      {
+        _DebugLog("Upload aborted mid-transfer: ran out of space");
+        request->_tempFile.close();
+        SD_MMC.remove(filepath);
+        uploadAborted = true;
+        request->send(507, "text/plain", "Ran out of storage space");
+        return;
+      }
+
+      size_t written = request->_tempFile.write(data, len);
+      if(written != len) {
+        _DebugLog("Write error: expected " + String(len) + ", wrote " + String(written));
+      }
+    }
+
+    if(final && request->_tempFile) 
+    {
+      uploadsize = request->_tempFile.size();
+      request->_tempFile.flush();
+      request->_tempFile.close();
+      uploadtime = millis() - start;
+      float speed = (uploadsize / 1024.0) / (uploadtime / 1000.0);
+      _DebugLog("Upload finished: " + String(uploadsize) + " bytes in " + String(uploadtime) + "ms (" + String(speed, 2) + " KB/s)");
+      request->send(200);
+    }
+  }
+
+  void AdiWiFiManager::Handle_SD_MMC_File_Download(AsyncWebServerRequest *request) {
+    if(!request->hasParam("filename")) 
+    {
+      request->send(400, "text/plain", "Missing filename");
+      _DebugLog("Download Handler failed, missing filename");
+      return;
+    }
+    String filename = request->getParam("filename")->value();
+    if(!SD_MMC.exists(filename)) 
+    {
+      request->send(404, "text/plain", "File not found");
+      _DebugLog("Download Handler failed, file not found");
+      return;
+    }
+    
+    File file = SD_MMC.open(filename);
+    if(file.isDirectory()) {
+      file.close();
+      request->send(400, "text/plain", "Cannot download folders directly");
+      return;
+    }
+    file.close();
+    
+    String contentType = "application/octet-stream";
+    if (filename.endsWith(".png")) contentType = "image/png";
+    else if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) contentType = "image/jpeg";
+    else if (filename.endsWith(".txt")) contentType = "text/plain";
+    else if (filename.endsWith(".mp4")) contentType = "video/mp4";
+    else if (filename.endsWith(".wav")) contentType = "audio/wav";
+    request->send(SD_MMC, filename, contentType, true);
+  }
+
+  void AdiWiFiManager::Handle_SD_MMC_File_Delete(AsyncWebServerRequest *request) {
+    if(!request->hasParam("filename")) 
+    {
+      request->send(400, "text/html", "Missing 'filename' parameter");
+      return;
+    }
+    String filename = request->getParam("filename")->value();
+    if(!filename.startsWith("/")) filename = "/" + filename;
+    
+    String currentPath = "/";
+    if(request->hasParam("path")) 
+    {
+      currentPath = request->getParam("path")->value();
+    } 
+    else 
+    {
+      int lastSlash = filename.lastIndexOf('/');
+      if(lastSlash > 0) currentPath = filename.substring(0, lastSlash);
+    }
+    
+    if(SD_MMC.exists(filename)) 
+    {
+      SD_MMC_deleteRecursive(filename);
+      _DebugLog("Deleted: " + filename);
+      request->send(200, "text/plain", "OK");
+    } 
+    else 
+    {
+      _DebugLog("Failed to delete, file not found");
+      request->send(404, "text/plain", "Not found");
+    }
+  }
+
+  void AdiWiFiManager::Handle_SD_MMC_File_Rename(AsyncWebServerRequest *request) {
+    if(!request->hasParam("old") || !request->hasParam("new")) 
+    {
+      request->send(400, "text/html", "Missing 'old' or 'new' filename parameter");
+      return;
+    }
+    String oldName = request->getParam("old")->value();
+    String newName = request->getParam("new")->value();
+    if(!oldName.startsWith("/")) oldName = "/" + oldName;
+    
+    String currentPath = "/";
+    if(request->hasParam("path")) currentPath = request->getParam("path")->value();
+    else 
+    {
+      int lastSlash = oldName.lastIndexOf('/');
+      if(lastSlash > 0) currentPath = oldName.substring(0, lastSlash);
+    }
+    
+    String newFullPath = currentPath;
+    if(!newFullPath.endsWith("/")) newFullPath += "/";
+    newFullPath += newName;
+    
+    if(oldName != newFullPath && oldName != "/" && newFullPath != "/") 
+    {
+      if(SD_MMC.exists(oldName)) 
+      {
+        if(!SD_MMC.exists(newFullPath)) 
+        {
+          if(SD_MMC.rename(oldName, newFullPath)) 
+          {
+            _DebugLog("Renamed from " + oldName + " to " + newFullPath);
+          } 
+          else 
+          {
+            _DebugLog("Failed to rename");
+          }
+        }
+        else
+        {
+          _DebugLog("A file with the new name already exists");
+        }
+      }
+      else
+      {
+        _DebugLog("Original file does not exist");
+      }
+    }
+    request->redirect("/sd_dir?path=" + currentPath);
+  }
+
+  void AdiWiFiManager::Handle_SD_MMC_File_Move(AsyncWebServerRequest *request) {
+    if(!request->hasParam("source") || !request->hasParam("destination")) 
+    {
+      request->send(400, "text/html", "Missing parameters");
+      return;
+    }
+    
+    String sourcePath = request->getParam("source")->value();
+    String destFolder = request->getParam("destination")->value();
+    
+    if(!sourcePath.startsWith("/")) sourcePath = "/" + sourcePath;
+    if(!destFolder.startsWith("/")) destFolder = "/" + destFolder;
+    if(!destFolder.endsWith("/")) destFolder += "/";
+    
+    String currentPath = "/";
+    if(request->hasParam("path")) currentPath = request->getParam("path")->value();
+    
+    // Extract filename from source
+    int lastSlash = sourcePath.lastIndexOf('/');
+    String filename = sourcePath.substring(lastSlash + 1);
+    
+    String destPath = destFolder + filename;
+    
+    if(sourcePath != destPath && SD_MMC.exists(sourcePath)) 
+    {
+      if(!SD_MMC.exists(destPath)) 
+      {
+        if(SD_MMC.rename(sourcePath, destPath)) 
+        {
+          _DebugLog("Moved from " + sourcePath + " to " + destPath);
+        } 
+        else 
+        {
+          _DebugLog("Failed to move");
+        }
+      }
+      else
+      {
+        _DebugLog("File already exists at destination");
+      }
+    }
+    
+    request->redirect("/sd_dir?path=" + currentPath);
+  }
+
+  void AdiWiFiManager::Handle_SD_MMC_Create_Folder(AsyncWebServerRequest *request) {
+    if(!request->hasParam("path") || !request->hasParam("name")) 
+    {
+      request->send(400, "text/html", "Missing parameters");
+      return;
+    }
+    
+    String basePath = request->getParam("path")->value();
+    String folderName = request->getParam("name")->value();
+    
+    if(!basePath.startsWith("/")) basePath = "/" + basePath;
+    if(!basePath.endsWith("/")) basePath += "/";
+    
+    String fullPath = basePath + folderName;
+    
+    if(!SD_MMC.exists(fullPath)) 
+    {
+      if(SD_MMC.mkdir(fullPath)) 
       {
         _DebugLog("Created folder: " + fullPath);
       } 
@@ -4279,6 +5479,10 @@ void AdiWiFiManager::Display_System_Info(AsyncWebServerRequest *request) {
     SD_Directory();
   #endif
 
+  #ifdef SD_MMC_ENABLED
+    SD_MMC_Directory();
+  #endif
+
   #ifdef LittleFS_ENABLED
     LittleFS_Directory();
   #endif
@@ -4446,6 +5650,14 @@ void AdiWiFiManager::Display_System_Info(AsyncWebServerRequest *request) {
     page += "<tr><th>Total Space</th><td>" + ConvBinUnits(SD.totalBytes(), 1) + "</td></tr>";
     page += "<tr><th>Used Space</th><td>" + ConvBinUnits(SD.usedBytes(), 1) + "</td></tr>";
     page += "<tr><th>Free Space</th><td>" + ConvBinUnits(SD.totalBytes() - SD.usedBytes(), 1) + "</td></tr>";
+    page += "</table>";
+  #endif
+
+  #ifdef SD_MMC_ENABLED
+    page += "<h4>SD_MMC Card</h4><table>";
+    page += "<tr><th>Total Space</th><td>" + ConvBinUnits(SD_MMC.totalBytes(), 1) + "</td></tr>";
+    page += "<tr><th>Used Space</th><td>" + ConvBinUnits(SD_MMC.usedBytes(), 1) + "</td></tr>";
+    page += "<tr><th>Free Space</th><td>" + ConvBinUnits(SD_MMC.totalBytes() - SD_MMC.usedBytes(), 1) + "</td></tr>";
     page += "</table>";
   #endif
 
@@ -4638,6 +5850,45 @@ void AdiWiFiManager::StartWebserver() {
 
     server.on("/sdcreatefolder", HTTP_GET, [this](AsyncWebServerRequest *request) {
       Handle_SD_Create_Folder(request);
+    });
+
+  #endif
+
+  #ifdef SD_MMC_ENABLED
+
+    server.on("/sd_dir", HTTP_GET, [this](AsyncWebServerRequest * request) {
+      Handle_SD_MMC_Dir(request);
+    });
+
+    server.on("/sdupload", HTTP_GET, [this](AsyncWebServerRequest *request) {
+      Handle_SD_MMC_File_Upload(request);
+    });
+
+    server.on("/sdupload", HTTP_POST, 
+      [this](AsyncWebServerRequest *request) {},
+      [this](AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
+        on_SD_MMC_File_Upload(request, filename, index, data, len, final);
+      }
+    );
+
+    server.on("/sddownload", HTTP_GET, [this](AsyncWebServerRequest *request) {
+      Handle_SD_MMC_File_Download(request);
+    });
+
+    server.on("/sddelete", HTTP_GET, [this](AsyncWebServerRequest *request) {
+      Handle_SD_MMC_File_Delete(request);
+    });
+
+    server.on("/sdrename", HTTP_GET, [this](AsyncWebServerRequest *request) {
+      Handle_SD_MMC_File_Rename(request);
+    });
+
+    server.on("/sdmove", HTTP_GET, [this](AsyncWebServerRequest *request) {
+      Handle_SD_MMC_File_Move(request);
+    });
+
+    server.on("/sdcreatefolder", HTTP_GET, [this](AsyncWebServerRequest *request) {
+      Handle_SD_MMC_Create_Folder(request);
     });
 
   #endif
@@ -4893,7 +6144,7 @@ void AdiWiFiManager::connectToWiFi(bool ap_on_fail, String sta_ssid, String sta_
 
       if(wifi_status != WL_CONNECTED)
       {
-        _DebugLog("- Starting AP..");
+        _DebugLog("Starting AP..");
         WiFi.disconnect(true);
         WiFi.mode(WIFI_AP);
         delay(100);
@@ -4935,6 +6186,7 @@ void AdiWiFiManager::loop() {
 void AdiWiFiManager::disconnect() {
 	WiFi.disconnect(true);
 	AP_MODE = false;
+  wifi_status = WL_DISCONNECTED;
 }
 
 void AdiWiFiManager::eraseSavedWiFi() {

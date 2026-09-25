@@ -7,12 +7,12 @@
   	#include "AdiWiFiManagerConfig.h"
 #endif
 
-#if !defined(SD_ENABLED) && !defined(LittleFS_ENABLED)
-	#warning "AdiWiFiManager: no filesystem selected. Create AdiWiFiManagerConfig.h in your sketch folder (copy AdiWiFiManagerConfig_example.h) and #define SD_ENABLED and/or LittleFS_ENABLED there."
+#if !defined(SD_ENABLED) && !defined(LittleFS_ENABLED) && !defined(SD_MMC_ENABLED)
+	#warning "AdiWiFiManager: no filesystem selected. Create AdiWiFiManagerConfig.h in your sketch folder (copy AdiWiFiManagerConfig_example.h) and #define SD_ENABLED/SD_MMC_ENABLED and/or LittleFS_ENABLED there."
 #endif
 
 #if !defined(ASSETS_LOCATION)
-	#warning "AdiWiFiManager: ASSETS_LOCATION not defined. Set it to SD or LittleFS in your AdiWiFiManagerConfig.h."
+	#warning "AdiWiFiManager: ASSETS_LOCATION not defined. Set it to SD/SD_MMC or LittleFS in your AdiWiFiManagerConfig.h."
 #endif
 
 #ifndef ARDUINO_ARCH_ESP32
@@ -68,6 +68,10 @@
 
 #ifdef SD_ENABLED
   #include "SD.h"
+#endif
+
+#ifdef SD_MMC_ENABLED
+  #include <SD_MMC.h>
 #endif
 
 #ifdef LittleFS_ENABLED
@@ -167,6 +171,23 @@ class AdiWiFiManager {
 		void Handle_SD_File_Rename(AsyncWebServerRequest *request);
 		void Handle_SD_File_Move(AsyncWebServerRequest *request);
 		void Handle_SD_Create_Folder(AsyncWebServerRequest *request);
+
+	#endif
+
+	#ifdef SD_MMC_ENABLED
+
+		int  SD_MMC_countFilesInDirectory(String path);
+		void SD_MMC_Directory(String path);
+		void SD_MMC_createDirectoryRecursive(const String& path);
+		void SD_MMC_deleteRecursive(String path);
+		void Handle_SD_MMC_Dir(AsyncWebServerRequest * request);
+		void Handle_SD_MMC_File_Upload(AsyncWebServerRequest *request);
+		void on_SD_MMC_File_Upload(AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final);
+		void Handle_SD_MMC_File_Download(AsyncWebServerRequest *request);
+		void Handle_SD_MMC_File_Delete(AsyncWebServerRequest *request);
+		void Handle_SD_MMC_File_Rename(AsyncWebServerRequest *request);
+		void Handle_SD_MMC_File_Move(AsyncWebServerRequest *request);
+		void Handle_SD_MMC_Create_Folder(AsyncWebServerRequest *request);
 
 	#endif
 

@@ -5,6 +5,7 @@
 
 // Uncomment the file systems that you want to access through the web file manager
 #define SD_ENABLED
+//#define SD_MMC_ENABLED
 //#define LittleFS_ENABLED
 //#define SPIFFS_ENABLED
 
@@ -18,7 +19,7 @@ Assets folder structure:
 
 */
 
-// This is the location where the assets for the webserver are stored. it can be either SD or LittleFS (can't use spiffs for this)
+// This is the location where the assets for the webserver are stored. it can be either SD/SD_MMC or LittleFS (can't use spiffs for this)
 #define ASSETS_LOCATION SD
 
 // Number of slots in eeprom to save wifi networks
