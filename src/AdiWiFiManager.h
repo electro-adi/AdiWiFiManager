@@ -135,6 +135,9 @@ extern fileinfo Filenames[MAX_FILES];
 extern int numfiles;
 extern String chosen_background, chosen_icon;
 
+typedef void (*ScanCompleteCallback)(WiFiResult *results, wifi_ssid_count_t count);
+extern ScanCompleteCallback scanCompleteCallback;
+
 class AdiWiFiManager {
 	private:
 
@@ -239,6 +242,9 @@ class AdiWiFiManager {
 		void connectToWiFi(bool ap_on_fail, String sta_ssid, String sta_pass);
 		wifi_ssid_count_t getScanResults(WiFiResult* &results);
 		uint8_t getWiFiStatus();
+		void StartScan();
+		void setScanCompleteCallback(ScanCompleteCallback callback);
+		bool isWBActive();
 		void loop();
 		void disconnect();
 		void eraseSavedWiFi();

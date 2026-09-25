@@ -16,6 +16,7 @@ fileinfo Filenames[MAX_FILES] __attribute__((section(".ext_ram.bss")));
 int numfiles = 0;
 String chosen_background = "", chosen_icon = "";
 DebugLogCallback debugLogCallback = nullptr;
+ScanCompleteCallback scanCompleteCallback = nullptr;
 
 String AdiWiFiManager::HTML_Header() {
 
@@ -906,6 +907,7 @@ void AdiWiFiManager::WIFI_CopySSIDs(wifi_ssid_count_t n) {
         }
       }
     }
+    if(scanCompleteCallback) scanCompleteCallback(wifiSSIDs, wifiSSIDCount);
   }
 }
 
@@ -6175,6 +6177,18 @@ void AdiWiFiManager::setDebugCallback(DebugLogCallback callback) {
 
 uint8_t AdiWiFiManager::getWiFiStatus() { 
   return wifi_status; 
+}
+
+void AdiWiFiManager::StartScan() { 
+  scan_now = true;
+}
+
+void AdiWiFiManager::setScanCompleteCallback(ScanCompleteCallback callback) {
+  scanCompleteCallback = callback;
+}
+
+bool AdiWiFiManager::isWBActive() { 
+  return webserver_running; 
 }
 
 void AdiWiFiManager::loop() {
