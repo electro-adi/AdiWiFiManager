@@ -1822,10 +1822,10 @@ int AdiWiFiManager::getFileTypePriority(String filename, String ftype) {
           for (let i = 0; i < files.length; i++) {
             const file = files[i];
             const formData = new FormData();
-            formData.append('filename', file);
             const relPath = file.webkitRelativePath || file.name;
             const base = uploadPath === '/' ? '' : uploadPath;
             formData.append('filepath', base + '/' + relPath);
+            formData.append('filename', file);
 
             try {
               await new Promise((resolve, reject) => {
@@ -2551,7 +2551,7 @@ int AdiWiFiManager::getFileTypePriority(String filename, String ftype) {
             const parts = currentPath.split('/').filter(p => p);
             parts.pop();
             const newPath = '/' + parts.join('/');
-            window.location.href = '/sd_dir?path=' + encodeURIComponent(newPath);
+            window.location.href = '/sd_mmc_dir?path=' + encodeURIComponent(newPath);
           }
 
           function resetSelection() {
@@ -2637,7 +2637,7 @@ int AdiWiFiManager::getFileTypePriority(String filename, String ftype) {
             }
 
             if (type === 'Dir') {
-              window.location.href = '/sd_dir?path=' + encodeURIComponent(fullPath);
+              window.location.href = '/sd_mmc_dir?path=' + encodeURIComponent(fullPath);
             } else {
               const ext = filename.split('.').pop().toLowerCase();
               const images = ['jpg', 'jpeg', 'png', 'bmp', 'gif'];
@@ -2704,7 +2704,7 @@ int AdiWiFiManager::getFileTypePriority(String filename, String ftype) {
                   if (response.ok) deleteCount++;
                 } catch (err) { console.error('Delete failed:', err); }
               }
-              window.location.href = '/sd_dir?path=' + encodeURIComponent(currentPath);
+              window.location.href = '/sd_mmc_dir?path=' + encodeURIComponent(currentPath);
             }
 
             else if (mode === 'move') {
@@ -2722,7 +2722,7 @@ int AdiWiFiManager::getFileTypePriority(String filename, String ftype) {
                   if (response.ok) moveCount++;
                 } catch (err) { console.error('Move failed:', err); }
               }
-              window.location.href = '/sd_dir?path=' + encodeURIComponent(currentPath);
+              window.location.href = '/sd_mmc_dir?path=' + encodeURIComponent(currentPath);
             }
 
             else if (mode === 'rename') {
@@ -3018,10 +3018,10 @@ int AdiWiFiManager::getFileTypePriority(String filename, String ftype) {
           for (let i = 0; i < files.length; i++) {
             const file = files[i];
             const formData = new FormData();
-            formData.append('filename', file);
             const relPath = file.webkitRelativePath || file.name;
             const base = uploadPath === '/' ? '' : uploadPath;
             formData.append('filepath', base + '/' + relPath);
+            formData.append('filename', file);
 
             try {
               await new Promise((resolve, reject) => {
@@ -3056,7 +3056,7 @@ int AdiWiFiManager::getFileTypePriority(String filename, String ftype) {
           }
           uploadText.textContent = 'Done!';
           setTimeout(() => {
-            window.location.href = '/sd_dir?path=' + encodeURIComponent(uploadPath);
+            window.location.href = '/sd_mmc_dir?path=' + encodeURIComponent(uploadPath);
           }, 800);
         });
       </script>
@@ -3261,7 +3261,7 @@ int AdiWiFiManager::getFileTypePriority(String filename, String ftype) {
         _DebugLog("Original file does not exist");
       }
     }
-    request->redirect("/sd_dir?path=" + currentPath);
+    request->redirect("/sd_mmc_dir?path=" + currentPath);
   }
 
   void AdiWiFiManager::Handle_SD_MMC_File_Move(AsyncWebServerRequest *request) {
@@ -3306,7 +3306,7 @@ int AdiWiFiManager::getFileTypePriority(String filename, String ftype) {
       }
     }
     
-    request->redirect("/sd_dir?path=" + currentPath);
+    request->redirect("/sd_mmc_dir?path=" + currentPath);
   }
 
   void AdiWiFiManager::Handle_SD_MMC_Create_Folder(AsyncWebServerRequest *request) {
@@ -3340,7 +3340,7 @@ int AdiWiFiManager::getFileTypePriority(String filename, String ftype) {
       _DebugLog("Folder already exists");
     }
     
-    request->redirect("/sd_dir?path=" + fullPath);
+    request->redirect("/sd_mmc_dir?path=" + fullPath);
   }
 
 #endif
@@ -4215,10 +4215,10 @@ int AdiWiFiManager::getFileTypePriority(String filename, String ftype) {
           for (let i = 0; i < files.length; i++) {
             const file = files[i];
             const formData = new FormData();
-            formData.append('filename', file);
             const relPath = file.webkitRelativePath || file.name;
             const base = uploadPath === '/' ? '' : uploadPath;
             formData.append('filepath', base + '/' + relPath);
+            formData.append('filename', file);
 
             try {
               await new Promise((resolve, reject) => {
